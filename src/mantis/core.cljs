@@ -1,10 +1,10 @@
 ;; 2014-06-19
-;; 930-1015
+;; 0.75  930-1015
 ;; 2014-06-21
-;; 9-1145
+;; 2.75  9-1145
 ;; 2014-06-22
-;; 230-245
-;; 445-
+;; 0.25  230-245
+;; 5  445-945
 (ns mantis.core
   (:require-macros [cljs.core.async.macros :refer [go]])
   (:require [om.core :as om :include-macros true]
@@ -14,7 +14,8 @@
             [goog.style :as style]
             [sablono.core :as html :refer-macros [html]]
             [cljs.core.async :as async :refer [>! <! put! take! chan close!]])
-  (:import [goog.events EventType]))
+  (:import [goog.events EventType]
+           [goog.math Matrix]))
 
 (enable-console-print!)
 
@@ -31,13 +32,28 @@
                                               (reduce (fn [s [k v]] (str s \space (name k) \= \" v \")) "" attrs)
                                               " />")}}]))
 
+(defn scale [m amount]
+  (.multiply (goog.math.Matrix. #js [#js [amount 0 0]
+                                     #js [0 amount 0]
+                                     #js [0 0 1]])
+             m))
+
+(defn translate [m [x y]]
+  (.multiply (goog.math.Matrix. #js [#js [1 0 x]
+                                     #js [0 1 y]
+                                     #js [0 0 1]])
+             m))
+
 (defn app-view [app owner]
   (reify
     om/IInitState
     (init-state [this]
                 {:zoom-offset [0 0]
                  :mouse-wheel-chan (chan)
-                 :zoom 1})
+                 :zoom 1
+                 :view-transformation (goog.math.Matrix. #js [#js [1 0 0]
+                                                              #js [0 1 0]
+                                                              #js [0 0 1]])})
 
     om/IDidMount
     (did-mount [this]
@@ -46,28 +62,29 @@
                                          [(listen (om/get-node owner :viewport) EventType.MOUSEMOVE)])
                          relative-mouse-pos-chan (async/map
                                                   (fn [[x y]]
-                                                    (let [viewport-pos (style/getClientPosition (om/get-node owner :translate-b))]
+                                                    (let [viewport-pos (style/getClientPosition (om/get-node owner :viewport))]
                                                       [(- x (.-x viewport-pos)) (- y (.-y viewport-pos))]))
                                                   [mouse-pos-chan])
                          mouse-wheel-chan (om/get-state owner :mouse-wheel-chan)]
                      (loop [mouse-pos [0 0]]
-                       (let [[value ch] (alts! [mouse-pos-chan mouse-wheel-chan])]
+                       (let [[value ch] (alts! [relative-mouse-pos-chan mouse-wheel-chan])]
                          (cond (= ch mouse-wheel-chan) (do
-                                                         ;(println [:zoom mouse-pos value])
-                                                         (om/update-state! owner (fn [s]
-                                                                                   (-> s
-                                                                                       (assoc :zoom-offset mouse-pos)
-                                                                                       (update-in [:zoom] #(- % (/ value 100))))))
+                                                         (om/update-state! owner :view-transformation (fn [m]
+                                                                                                        (let [[mouse-x mouse-y] mouse-pos
+                                                                                                              offset-x (.getValueAt m 0 2)
+                                                                                                              offset-y (.getValueAt m 1 2)]
+                                                                                                          (-> m
+                                                                                                              (translate [(- mouse-x) (- mouse-y)])
+                                                                                                              (scale (- 1 (/ value 100)))
+                                                                                                              (translate mouse-pos)))))
                                                          (recur mouse-pos))
                                :default (recur value)))))))
 
     om/IRenderState
-    (render-state [this {:keys [zoom zoom-offset mouse-wheel-chan] :as state}]
-                  (let [[zoom-offset-x zoom-offset-y] zoom-offset]
-                    (println state)
-                    (when-not (= zoom 1)
-                      (println (style/getPosition (om/get-node owner :viewport)))
-                      (println (style/getClientPosition (om/get-node owner :viewport))))
+    (render-state [this {:keys [view-transformation zoom zoom-offset mouse-wheel-chan] :as state}]
+                  (let [[zoom-offset-x zoom-offset-y] zoom-offset
+                        svg-view-transformation (apply mapcat list (take 2 (.toArray view-transformation)))]
+                    ;(println state)
                     (html
                      [:div
                       [:h2 "Mantis Shrimp"]
@@ -76,9 +93,10 @@
                              :onWheel #(do
                                          (.preventDefault %)
                                          (put! mouse-wheel-chan (.-deltaY %)))}
-                       [:g {:ref :translate-a :transform (str "translate(" zoom-offset-x "," zoom-offset-y")")}
-                        [:g {:ref :scale :transform (str "scale(" zoom ")")}
-                         [:g {:ref :translate-b :transform (str "translate(" (- zoom-offset-x) "," (- zoom-offset-y) ")")}
-                          (image {:width 300 :height 300 :xlink:href "https://mdn.mozillademos.org/files/2917/fxlogo.png"})]]]]])))))
+                       ;[:g {:ref :translate-a :transform (str "translate(" zoom-offset-x "," zoom-offset-y")")}
+                       ; [:g {:ref :scale :transform (str "scale(" zoom ")")}
+                       ;  [:g {:ref :translate-b :transform (str "translate(" (- zoom-offset-x) "," (- zoom-offset-y) ")")}
+                       [:g {:ref :view-transformation :transform (str "matrix(" (s/join \, svg-view-transformation) ")")}
+                        (image {:width 300 :height 300 :xlink:href "https://mdn.mozillademos.org/files/2917/fxlogo.png"})]]])))))
 
 (om/root app-view app-state {:target (. js/document (getElementById "app"))})
