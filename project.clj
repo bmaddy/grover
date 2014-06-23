@@ -13,10 +13,20 @@
   :source-paths ["src"]
 
   :cljsbuild {
-    :builds [{:id "grover"
+    :builds [{:id "dev"
               :source-paths ["src"]
               :compiler {
-                :output-to "grover.js"
+                :output-to "resources/grover.js"
                 :output-dir "out"
                 :optimizations :none
-                :source-map true}}]})
+                :source-map true}}
+             #_{:id "prod"
+              :source-paths ["src"]
+              :compiler {
+                :output-to "resources/grover.adv.js"
+                :optimizations :advanced
+                :pretty-print false
+                ;:preamble ["react/react-0.10.0.js"]
+                :externs ["react/react-0.10.0.js"]
+                :closure-warnings {:externs-validation :off
+                                   :non-standard-jsdoc :off}}}]})

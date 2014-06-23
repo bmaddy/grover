@@ -9,6 +9,10 @@
 ;; 5  445-945
 ;; 0.25  11-1115
 
+;; 2014-06-23
+;; 730-815
+;; 9-930
+
 (ns grover.core
   (:require-macros [cljs.core.async.macros :refer [go]])
   (:require [om.core :as om :include-macros true]
@@ -97,12 +101,9 @@
                              :onWheel #(do
                                          (.preventDefault %)
                                          (put! mouse-wheel-chan (.-deltaY %)))}
-                       ;[:g {:ref :translate-a :transform (str "translate(" zoom-offset-x "," zoom-offset-y")")}
-                       ; [:g {:ref :scale :transform (str "scale(" zoom ")")}
-                       ;  [:g {:ref :translate-b :transform (str "translate(" (- zoom-offset-x) "," (- zoom-offset-y) ")")}
                        [:g {:ref :view-transformation :transform (str "matrix(" (s/join \, svg-view-transformation) ")")}
                         (image {:width 300 :height 300 :xlink:href "https://mdn.mozillademos.org/files/2917/fxlogo.png"})
-                        [:g {:transform "translate(200,0)"}
+                        [:g {:transform "translate(159,166) scale(0.05)"}
                          (image {:width 300 :height 300 :xlink:href "https://upload.wikimedia.org/wikipedia/commons/b/b0/NewTux.svg"})]]]])))))
 
 (om/root app-view app-state {:target (. js/document (getElementById "app"))})
