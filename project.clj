@@ -1,4 +1,4 @@
-(defproject mantis "0.1.0-SNAPSHOT"
+(defproject grover "0.1.0-SNAPSHOT"
   :description "FIXME: write this!"
   :url "http://example.com/FIXME"
 
@@ -13,10 +13,10 @@
   :source-paths ["src"]
 
   :cljsbuild {
-    :builds [{:id "mantis"
+    :builds [{:id "grover"
               :source-paths ["src"]
               :compiler {
-                :output-to "mantis.js"
+                :output-to "grover.js"
                 :output-dir "out"
                 :optimizations :none
                 :source-map true}}]})
