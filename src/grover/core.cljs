@@ -13,6 +13,13 @@
 ;; 730-815
 ;; 9-930
 
+;; 2014-06-25
+;; 10-1030
+
+;; 2014-07-01
+;; 1245-1
+;; 830-
+
 (ns grover.core
   (:require-macros [cljs.core.async.macros :refer [go]])
   (:require [om.core :as om :include-macros true]
@@ -27,7 +34,9 @@
 
 (enable-console-print!)
 
-(def app-state (atom {:zoom 1}))
+(def app-state (atom {:view-transformation (goog.math.Matrix. #js [#js [1 0 0]
+                                                                   #js [0 1 0]
+                                                                   #js [0 0 1]])}))
 
 (defn listen [el type]
   (let [out (chan)]
@@ -52,14 +61,11 @@
                                      #js [0 0 1]])
              m))
 
-(defn app-view [app owner]
+(defn view-pane-view [{:keys [view-transformation svg-view-transformation] :as app} owner]
   (reify
     om/IInitState
     (init-state [this]
-                {:mouse-wheel-chan (chan)
-                 :view-transformation (goog.math.Matrix. #js [#js [1 0 0]
-                                                              #js [0 1 0]
-                                                              #js [0 0 1]])})
+                {:mouse-wheel-chan (chan)})
 
     om/IDidMount
     (did-mount [this]
@@ -72,15 +78,19 @@
                                                   [(- x (.-x viewport-pos)) (- y (.-y viewport-pos))]))
                                               [mouse-pos-chan])
                      mouse-wheel-chan (om/get-state owner :mouse-wheel-chan)]
+
+                 #_(go
+                  (loop [start-mouse-pos [0 0]]
+                    (let [[value ch] (alts! [mouse-pos-chan mouse-down-chan])]
+                      (cond (= ch mouse-click-chan)))))
+
                  (go
                   (loop [mouse-pos [0 0]]
                     (let [[value ch] (alts! [relative-mouse-pos-chan mouse-wheel-chan])]
                       (cond (= ch mouse-wheel-chan) (do
-                                                      (om/update-state! owner :view-transformation
+                                                      (om/transact! app :view-transformation
                                                                         (fn [m]
-                                                                          (let [[mouse-x mouse-y] mouse-pos
-                                                                                offset-x (.getValueAt m 0 2)
-                                                                                offset-y (.getValueAt m 1 2)]
+                                                                          (let [[mouse-x mouse-y] mouse-pos]
                                                                             (-> m
                                                                                 (translate [(- mouse-x) (- mouse-y)])
                                                                                 (scale (- 1 (/ value 100)))
@@ -89,21 +99,32 @@
                             :default (recur value)))))))
 
     om/IRenderState
-    (render-state [this {:keys [view-transformation zoom zoom-offset mouse-wheel-chan] :as state}]
-                  (let [[zoom-offset-x zoom-offset-y] zoom-offset
-                        svg-view-transformation (apply mapcat list (take 2 (.toArray view-transformation)))]
-                    ;(println state)
+    (render-state [this {:keys [mouse-wheel-chan] :as state}]
+                  (let []
                     (html
-                     [:div
-                      [:h2 "Grover"]
+                     [:span
                       [:svg {:ref :viewport
-                             :width 800 :height 600 :style {:border "solid black 1px"}
+                             :width 600 :height 400 :style {:border "solid black 1px"}
                              :onWheel #(do
                                          (.preventDefault %)
                                          (put! mouse-wheel-chan (.-deltaY %)))}
                        [:g {:ref :view-transformation :transform (str "matrix(" (s/join \, svg-view-transformation) ")")}
                         (image {:width 300 :height 300 :xlink:href "https://mdn.mozillademos.org/files/2917/fxlogo.png"})
                         [:g {:transform "translate(159,166) scale(0.05)"}
+                        ;[:g {:transform "translate(200,0) scale(1)"}
                          (image {:width 300 :height 300 :xlink:href "https://upload.wikimedia.org/wikipedia/commons/b/b0/NewTux.svg"})]]]])))))
+
+(defn app-view [{:keys [view-transformation] :as app} owner]
+  (reify
+    om/IRenderState
+    (render-state [this state]
+                  (let [svg-view-transformation (apply mapcat list (take 2 (.toArray view-transformation)))
+                        app-with-svg-transform (assoc app :svg-view-transformation svg-view-transformation)]
+                    (html
+                     [:div
+                      [:h2 "Grover"]
+                      (om/build view-pane-view app-with-svg-transform)
+                      (om/build view-pane-view app-with-svg-transform)
+                      ])))))
 
 (om/root app-view app-state {:target (. js/document (getElementById "app"))})
