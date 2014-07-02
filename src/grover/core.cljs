@@ -18,7 +18,11 @@
 
 ;; 2014-07-01
 ;; 1245-1
-;; 830-
+;; 830-10
+
+;; 2014-07-02
+;; 745-815
+;; 845-930
 
 (ns grover.core
   (:require-macros [cljs.core.async.macros :refer [go]])
@@ -34,9 +38,27 @@
 
 (enable-console-print!)
 
-(def app-state (atom {:view-transformation (goog.math.Matrix. #js [#js [1 0 0]
-                                                                   #js [0 1 0]
-                                                                   #js [0 0 1]])}))
+(defn identity-matrix []
+  (goog.math.Matrix. #js [#js [1 0 0]
+                          #js [0 1 0]
+                          #js [0 0 1]]))
+
+(def app-state (atom {:view-transformation (identity-matrix)
+                      :views [{:view-transformation (identity-matrix)
+                               :compositions [{:images [{:width 300
+                                                         :height 300
+                                                         :xlink:href "https://mdn.mozillademos.org/files/2917/fxlogo.png"}]
+                                               :children [{:transform "translate(159,166) scale(0.05)"
+                                                           :images [{:width 300
+                                                                     :height 300
+                                                                     :xlink:href "https://upload.wikimedia.org/wikipedia/commons/b/b0/NewTux.svg"}]}]}
+                                               {:images [{:width 300
+                                                         :height 300
+                                                         :xlink:href "https://mdn.mozillademos.org/files/2917/fxlogo.png"}]
+                                               :children [{:transform "translate(159,166) scale(0.05)"
+                                                           :images [{:width 300
+                                                                     :height 300
+                                                                     :xlink:href "https://mdn.mozillademos.org/files/2917/fxlogo.png"}]}]}]}]}))
 
 (defn listen [el type]
   (let [out (chan)]
@@ -61,7 +83,19 @@
                                      #js [0 0 1]])
              m))
 
-(defn view-pane-view [{:keys [view-transformation svg-view-transformation] :as app} owner]
+(defn draw-composition [{:keys [transform images children]}]
+  (html
+   [:g (when transform {:transform transform})
+    ;(image {:width 300 :height 300 :xlink:href "https://mdn.mozillademos.org/files/2917/fxlogo.png"})
+    (list (for [image-data images]
+            (image image-data)))
+    (for [child children]
+      (draw-composition child))
+    #_[:g {:transform "translate(159,166) scale(0.05)"}
+     ;[:g {:transform "translate(200,0) scale(1)"}
+     (image {:width 300 :height 300 :xlink:href "https://upload.wikimedia.org/wikipedia/commons/b/b0/NewTux.svg"})]]))
+
+(defn view-pane-view [{:keys [composition view-transformation svg-view-transformation] :as app} owner]
   (reify
     om/IInitState
     (init-state [this]
@@ -109,22 +143,23 @@
                                          (.preventDefault %)
                                          (put! mouse-wheel-chan (.-deltaY %)))}
                        [:g {:ref :view-transformation :transform (str "matrix(" (s/join \, svg-view-transformation) ")")}
-                        (image {:width 300 :height 300 :xlink:href "https://mdn.mozillademos.org/files/2917/fxlogo.png"})
-                        [:g {:transform "translate(159,166) scale(0.05)"}
-                        ;[:g {:transform "translate(200,0) scale(1)"}
-                         (image {:width 300 :height 300 :xlink:href "https://upload.wikimedia.org/wikipedia/commons/b/b0/NewTux.svg"})]]]])))))
+                        (draw-composition composition)]]])))))
 
-(defn app-view [{:keys [view-transformation] :as app} owner]
+(defn app-view [{:keys [views view-transformation] :as app} owner]
   (reify
     om/IRenderState
     (render-state [this state]
-                  (let [svg-view-transformation (apply mapcat list (take 2 (.toArray view-transformation)))
-                        app-with-svg-transform (assoc app :svg-view-transformation svg-view-transformation)]
-                    (html
-                     [:div
-                      [:h2 "Grover"]
-                      (om/build view-pane-view app-with-svg-transform)
-                      (om/build view-pane-view app-with-svg-transform)
-                      ])))))
+                  (html
+                   [:div
+                    [:h2 "Grover"]
+                    (list
+                     (for [{:keys [view-transformation compositions] :as view} views
+                           composition compositions
+                           :let [svg-view-transformation (apply mapcat list (take 2 (.toArray view-transformation)))
+                                 app-with-svg-transform (assoc view
+                                                          :svg-view-transformation svg-view-transformation
+                                                          :composition composition)]]
+                       (om/build view-pane-view app-with-svg-transform)))
+                    ]))))
 
 (om/root app-view app-state {:target (. js/document (getElementById "app"))})
