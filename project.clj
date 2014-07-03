@@ -26,7 +26,7 @@
                 :output-to "resources/grover.adv.js"
                 :optimizations :advanced
                 :pretty-print false
-                ;:preamble ["react/react-0.10.0.js"]
-                :externs ["react/react-0.10.0.js"]
+                ;:preamble ["react/react-0.9.0.js"]
+                :externs ["react/react-0.9.0.js"]
                 :closure-warnings {:externs-validation :off
                                    :non-standard-jsdoc :off}}}]})

@@ -10,19 +10,26 @@
 ;; 0.25  11-1115
 
 ;; 2014-06-23
-;; 730-815
-;; 9-930
+;; 0.75  730-815
+;; 0.5  9-930
 
 ;; 2014-06-25
-;; 10-1030
+;; 0.5  10-1030
 
 ;; 2014-07-01
-;; 1245-1
-;; 830-10
+;; 0.25  1245-1
+;; 1.5  830-10
 
 ;; 2014-07-02
-;; 745-815
-;; 845-930
+;; 0.5  745-815
+;; 0.75  845-930
+;; 0.75  330-415
+
+;; 2014-07-03
+;; 115-2
+;; 915-10
+
+;; 0.75 + 2.75 + 0.25 + 5 + 0.25 + 0.75 + 0.5 + 0.5 + 0.25 + 1.5 + 0.5 + 0.75 + 0.75
 
 (ns grover.core
   (:require-macros [cljs.core.async.macros :refer [go]])
@@ -43,8 +50,7 @@
                           #js [0 1 0]
                           #js [0 0 1]]))
 
-(def app-state (atom {:view-transformation (identity-matrix)
-                      :views [{:view-transformation (identity-matrix)
+(def app-state (atom {:views [{:view-transformation (identity-matrix)
                                :compositions [{:images [{:width 300
                                                          :height 300
                                                          :xlink:href "https://mdn.mozillademos.org/files/2917/fxlogo.png"}]
@@ -104,19 +110,29 @@
     om/IDidMount
     (did-mount [this]
                (let [mouse-pos-chan (async/map
-                                     (fn [e] [(.-clientX e) (.-clientY e)])
+                                     (fn [e] [(.-clientX e) (.-clientY e) e])
                                      [(listen (om/get-node owner :viewport) EventType.MOUSEMOVE)])
                      relative-mouse-pos-chan (async/map
                                               (fn [[x y]]
                                                 (let [viewport-pos (style/getClientPosition (om/get-node owner :viewport))]
                                                   [(- x (.-x viewport-pos)) (- y (.-y viewport-pos))]))
                                               [mouse-pos-chan])
-                     mouse-wheel-chan (om/get-state owner :mouse-wheel-chan)]
+                     mouse-wheel-chan (om/get-state owner :mouse-wheel-chan)
+                     mouse-down-chan (listen (om/get-node owner :viewport) "mousedown")
+                     mouse-up-chan (listen (om/get-node owner :viewport) "mouseup")]
 
-                 #_(go
-                  (loop [start-mouse-pos [0 0]]
+                 (go
+                  (loop [mouse-pos [0 0]]
                     (let [[value ch] (alts! [mouse-pos-chan mouse-down-chan])]
-                      (cond (= ch mouse-click-chan)))))
+                      (if (= ch mouse-pos-chan)
+                        (recur value)
+                        (do
+                          (loop [last-mouse-pos mouse-pos]
+                            (let [[value ch] (alts! [mouse-pos-chan mouse-up-chan])]
+                              (when (= ch mouse-pos-chan)
+                                (om/transact! app :view-transformation #(translate % (map - value last-mouse-pos)))
+                                (recur value))))
+                          (recur mouse-pos))))))
 
                  (go
                   (loop [mouse-pos [0 0]]
@@ -152,6 +168,16 @@
                   (html
                    [:div
                     [:h2 "Grover"]
+                    [:ul
+                     [:li "About 150 lines of ClojureScript"]
+                     [:li "No tests yet"]
+                     [:li "Loading 'zoomed in' tiles doesn't work yet"]
+                     [:li "You can drag with the mouse"]
+                     [:li "Mousewheel controls zoom"]
+                     [:li "Same zoom transformation can be used in mutiple viewports"]
+                     [:li "Try zooming in at one mouse location and zoom out at another - the image doesn't jump around"]
+                     [:li "Note that the fox (or red panda?) has two different images under its paw"]
+                     [:li "It currently works well only in Chrome and Safari (IE is untested)"]]
                     (list
                      (for [{:keys [view-transformation compositions] :as view} views
                            composition compositions
