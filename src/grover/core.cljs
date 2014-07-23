@@ -39,11 +39,15 @@
             [goog.events :as events]
             [goog.style :as style]
             [sablono.core :as html :refer-macros [html]]
-            [cljs.core.async :as async :refer [>! <! put! take! chan close!]])
+            [cljs.core.async :as async :refer [>! <! put! take! chan close!]]
+            [clojure.browser.repl :as repl])
   (:import [goog.events EventType]
            [goog.math Matrix]))
 
 (enable-console-print!)
+
+;; browser connected REPL at load http://localhost:9000/
+(repl/connect "http://localhost:9000/repl")
 
 (defn identity-matrix []
   (goog.math.Matrix. #js [#js [1 0 0]
@@ -64,7 +68,24 @@
                                                :children [{:transform "translate(159,166) scale(0.05)"
                                                            :images [{:width 300
                                                                      :height 300
-                                                                     :xlink:href "https://mdn.mozillademos.org/files/2917/fxlogo.png"}]}]}]}]}))
+                                                                     :xlink:href "https://mdn.mozillademos.org/files/2917/fxlogo.png"}]
+                                                           :children [{:transform "translate(159,166) scale(0.05)"
+                                                                       :images [{:width 300
+                                                                                 :height 300
+                                                                                 :xlink:href "https://mdn.mozillademos.org/files/2917/fxlogo.png"}]
+                                                                       :children [{:transform "translate(159,166) scale(0.05)"
+                                                                                   :images [{:width 300
+                                                                                             :height 300
+                                                                                             :xlink:href "https://mdn.mozillademos.org/files/2917/fxlogo.png"}]}]}]}]}]}
+                              {:view-transformation (identity-matrix)
+                               :compositions [{:images [{:width 300
+                                                         :height 300
+                                                         :xlink:href "http://scale.ydc2.yale.edu/iiif/970ef29a-5bf6-46a3-9a21-f27a3148c02f/full/full/0/native.jpg"}]
+                                               :children [{:transform "translate(240,0)"
+                                                           :images [{:width 300
+                                                                     :height 300
+                                                                     :xlink:href "http://scale.ydc2.yale.edu/iiif/d5f0b90f-3f83-455d-99c2-7f5dea0c998c/full/full/0/native.jpg"}]}]}
+                                               ]}]}))
 
 (defn listen [el type]
   (let [out (chan)]
